@@ -1,0 +1,32 @@
+FROM pytorch/pytorch:2.8.0-cuda12.8-cudnn9-runtime
+
+WORKDIR /app
+
+# System deps for audio processing
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ffmpeg \
+    libsndfile1 \
+    git \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install PyTorch with CUDA 12.8 (matches T4 / CUDA 12.x driver)
+RUN pip install --no-cache-dir \
+    "torch==2.8.0" \
+    "torchaudio==2.8.0" \
+    --index-url https://download.pytorch.org/whl/cu128
+
+# Install package (copy pyproject first for layer caching)
+COPY pyproject.toml README.md ./
+COPY omnivoice/ ./omnivoice/
+RUN pip install --no-cache-dir -e .
+
+ENV HF_HOME=/cache/huggingface
+ENV TRANSFORMERS_CACHE=/cache/huggingface/hub
+# Use bf16 on T4 for better performance/memory trade-off
+ENV OMNIVOICE_DTYPE=float16
+
+EXPOSE 7860
+
+ENTRYPOINT ["omnivoice-demo"]
+CMD ["--model", "k2-fsa/OmniVoice", "--port", "7860", "--ip", "0.0.0.0", "--device", "cuda"]
