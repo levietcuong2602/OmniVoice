@@ -1,0 +1,27 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ffmpeg \
+    libsndfile1 \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install CPU-only PyTorch first (ARM64-compatible)
+RUN pip install --no-cache-dir \
+    "torch==2.4.0" \
+    "torchaudio==2.4.0" \
+    --index-url https://download.pytorch.org/whl/cpu
+
+COPY pyproject.toml README.md ./
+COPY omnivoice/ ./omnivoice/
+RUN pip install --no-cache-dir -e .
+
+ENV HF_HOME=/cache/huggingface
+ENV TRANSFORMERS_CACHE=/cache/huggingface/hub
+
+EXPOSE 7860
+
+ENTRYPOINT ["omnivoice-demo"]
+CMD ["--model", "k2-fsa/OmniVoice", "--port", "7860", "--ip", "0.0.0.0"]
